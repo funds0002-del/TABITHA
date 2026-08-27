@@ -14,6 +14,7 @@ const rand = (min, max) =>
 
 const MAX_PLAYERS = 10;
 const STARTING_HP = 100;
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default {
   data: new SlashCommandBuilder()
@@ -229,31 +230,36 @@ export default {
 // MULTIPLAYER BATTLE ENGINE
 // ===============================
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function runBattle(interaction, players) {
   const battleLog = [];
+  let round = 1;
 
   const actions = [
     'throws a wild punch at',
     'casts a spell on',
     'lands a critical hit on',
     'launches a powerful attack at',
-    'parries and counterattacks',
+    'parries and counterattacks against',
     'strikes',
   ];
 
-  // Continue until only one player remains
-  while ([...players.values()].filter((player) => player.alive).length > 1) {
+  // Keep fighting until only one player is alive
+  while (
+    [...players.values()].filter(player => player.alive).length > 1
+  ) {
     const alivePlayers = [...players.values()].filter(
-      (player) => player.alive
+      player => player.alive
     );
 
-    // Choose random attacker
+    // Pick attacker
     const attacker =
       alivePlayers[rand(0, alivePlayers.length - 1)];
 
-    // Choose random target that is NOT the attacker
+    // Pick someone else as target
     const possibleTargets = alivePlayers.filter(
-      (player) => player.user.id !== attacker.user.id
+      player => player.user.id !== attacker.user.id
     );
 
     const target =
@@ -261,55 +267,92 @@ async function runBattle(interaction, players) {
 
     const damage = rand(10, 30);
 
-    const action = actions[rand(0, actions.length - 1)];
+    const action =
+      actions[rand(0, actions.length - 1)];
 
+    // Apply damage
     target.hp -= damage;
 
     if (target.hp < 0) {
       target.hp = 0;
     }
 
-    battleLog.push(
-      `⚔️ **${attacker.user.username}** ${action} ` +
-        `**${target.user.username}** for **${damage} damage!**\n` +
-        `❤️ ${target.user.username}: **${target.hp} HP**`
-    );
+    // Create round message
+    const roundText =
+      `⚔️ **Round ${round}**\n` +
+      `**${attacker.user.username}** ${action} ` +
+      `**${target.user.username}** for **${damage} damage!**\n\n` +
+      `❤️ **${target.user.username}: ${target.hp} HP**`;
 
-    // Check if player has been eliminated
+    battleLog.push(roundText);
+
+    // Check elimination
     if (target.hp <= 0) {
       target.alive = false;
 
       battleLog.push(
-        `💀 **${target.user.username} has been eliminated from the battle!**`
+        `💀 **${target.user.username} has been eliminated!**`
       );
     }
+
+    // Show recent battle activity
+    const recentLog = battleLog.slice(-6).join('\n\n');
+
+    // Show current player health
+    const healthStatus = [...players.values()]
+      .map(player => {
+        if (!player.alive) {
+          return `💀 **${player.user.username}** — Eliminated`;
+        }
+
+        return `❤️ **${player.user.username}** — ${player.hp} HP`;
+      })
+      .join('\n');
+
+    const description =
+      `${recentLog}\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `📊 **Current Health**\n${healthStatus}`;
+
+    await InteractionHelper.safeEditReply(interaction, {
+      embeds: [
+        successEmbed(
+          '⚔️ Multiplayer Battle!',
+          description
+        ),
+      ],
+      components: [],
+    });
+
+    // Wait 2 seconds before next round
+    await sleep(2000);
+
+    round++;
   }
 
   // Find winner
   const winner = [...players.values()].find(
-    (player) => player.alive
+    player => player.alive
   );
 
-  const finalLog = battleLog.join('\n\n');
+  const finalHealth = [...players.values()]
+    .map(player => {
+      if (!player.alive) {
+        return `💀 **${player.user.username}** — Eliminated`;
+      }
 
-  const finalDescription =
-    `${finalLog}\n\n` +
-    `━━━━━━━━━━━━━━━━━━\n` +
-    `👑 **${winner.user.username} is the last warrior standing!**\n` +
-    `🏆 **${winner.user.username} wins the battle!**`;
-
-  // Discord embed limit protection
-  const description =
-    finalDescription.length <= 4096
-      ? finalDescription
-      : finalDescription.slice(0, 4000) +
-        '\n\n⚔️ Battle log shortened...';
+      return `👑 **${player.user.username}** — ${player.hp} HP`;
+    })
+    .join('\n');
 
   await InteractionHelper.safeEditReply(interaction, {
     embeds: [
       successEmbed(
         '🏆 Multiplayer Battle Complete!',
-        description
+        `👑 **${winner.user.username} is the last warrior standing!**\n\n` +
+        `🏆 **${winner.user.username} wins the battle!**\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `📊 **Final Results**\n${finalHealth}`
       ),
     ],
     components: [],
