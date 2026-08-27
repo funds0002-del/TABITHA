@@ -230,8 +230,6 @@ export default {
 // MULTIPLAYER BATTLE ENGINE
 // ===============================
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 async function runBattle(interaction, players) {
   const battleLog = [];
   let round = 1;
