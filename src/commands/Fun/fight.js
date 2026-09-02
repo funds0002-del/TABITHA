@@ -286,6 +286,9 @@ async function startSoloBattle(interaction) {
   let goblinHP = 100;
   let round = 1;
 
+  // Store the complete battle history
+  const battleHistory = [];
+
   const createSoloEmbed = (
     title = '🤖 Solo Battle',
     extraText = ''
@@ -304,9 +307,12 @@ async function startSoloBattle(interaction) {
     return successEmbed(
       title,
       `${extraText}\n\n` +
-        `👤 **Player**\n${playerStatus}\n\n` +
-        `⚔️ **VS**\n\n` +
-        `👹 **Enemy**\n${goblinStatus}\n\n` +
+        `📜 **Battle History**\n\n` +
+        `${battleHistory.join('\n\n')}\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `📊 **Current Health**\n` +
+        `${playerStatus}\n` +
+        `${goblinStatus}\n\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
         `🎯 **Round:** ${round}`
     );
@@ -315,6 +321,11 @@ async function startSoloBattle(interaction) {
   // ==========================================
   // BATTLE START
   // ==========================================
+
+  battleHistory.push(
+    `🔥 **Battle Started!**\n` +
+    `👤 **${player.username}** vs 👹 **Goblin**`
+  );
 
   await InteractionHelper.safeEditReply(interaction, {
     embeds: [
@@ -347,9 +358,10 @@ async function startSoloBattle(interaction) {
       goblinHP = 0;
     }
 
-    const playerText =
+    const playerAttackText =
       `⚔️ **${player.username} attacks the Goblin!**\n` +
-      `💥 **${player.username} deals ${playerDamage} damage!**`;
+      `💥 **${player.username} deals ${playerDamage} damage!**\n` +
+      `👹 **Goblin HP:** ${goblinHP}/100`;
 
     // ==========================================
     // GOBLIN DEFEATED
@@ -357,13 +369,18 @@ async function startSoloBattle(interaction) {
 
     if (goblinHP <= 0) {
 
+      battleHistory.push(
+        `⚔️ **Round ${round}**\n\n` +
+        `${playerAttackText}\n\n` +
+        `💀 **The Goblin has been defeated!**\n` +
+        `🏆 **${player.username} wins!**`
+      );
+
       await InteractionHelper.safeEditReply(interaction, {
         embeds: [
           createSoloEmbed(
             '🏆 Victory!',
-            `${playerText}\n\n` +
-              `💀 **The Goblin has been defeated!**\n\n` +
-              `🏆 **${player.username} wins!**`
+            `🏆 **${player.username} has won the battle!**`
           ),
         ],
         components: [],
@@ -377,25 +394,20 @@ async function startSoloBattle(interaction) {
     }
 
     // ==========================================
-    // SHOW PLAYER ATTACK
+    // GOBLIN ATTACKS
     // ==========================================
 
     await InteractionHelper.safeEditReply(interaction, {
       embeds: [
         createSoloEmbed(
           '⚔️ Solo Battle',
-          `${playerText}\n\n` +
-            `👹 **Goblin:** ${goblinHP}/100 HP`
+          `⚔️ **Round ${round} is underway...**`
         ),
       ],
       components: [],
     });
 
     await sleep(1500);
-
-    // ==========================================
-    // GOBLIN ATTACKS
-    // ==========================================
 
     const goblinDamage = rand(8, 25);
 
@@ -405,9 +417,20 @@ async function startSoloBattle(interaction) {
       playerHP = 0;
     }
 
-    const goblinText =
+    const goblinAttackText =
       `👹 **The Goblin attacks ${player.username}!**\n` +
-      `💥 **The Goblin deals ${goblinDamage} damage!**`;
+      `💥 **The Goblin deals ${goblinDamage} damage!**\n` +
+      `❤️ **${player.username} HP:** ${playerHP}/100`;
+
+    // ==========================================
+    // ADD COMPLETE ROUND TO HISTORY
+    // ==========================================
+
+    battleHistory.push(
+      `⚔️ **Round ${round}**\n\n` +
+      `${playerAttackText}\n\n` +
+      `${goblinAttackText}`
+    );
 
     // ==========================================
     // PLAYER DEFEATED
@@ -415,13 +438,17 @@ async function startSoloBattle(interaction) {
 
     if (playerHP <= 0) {
 
+      battleHistory.push(
+        `💀 **${player.username} has been defeated!**\n` +
+        `🏆 **The Goblin wins!**`
+      );
+
       await InteractionHelper.safeEditReply(interaction, {
         embeds: [
           createSoloEmbed(
             '💀 Defeat',
-            `${playerText}\n\n` +
-              `${goblinText}\n\n` +
-              `💀 **${player.username} has been defeated!**`
+            `💀 **${player.username} has been defeated!**\n\n` +
+              `👹 **The Goblin wins!**`
           ),
         ],
         components: [],
@@ -435,7 +462,7 @@ async function startSoloBattle(interaction) {
     }
 
     // ==========================================
-    // NEXT ROUND
+    // SHOW UPDATED BATTLE HISTORY
     // ==========================================
 
     round++;
@@ -444,7 +471,7 @@ async function startSoloBattle(interaction) {
       embeds: [
         createSoloEmbed(
           '🤖 Solo Battle',
-          `${playerText}\n\n${goblinText}`
+          `⚔️ **Round ${round - 1} complete!**`
         ),
       ],
       components: [],
