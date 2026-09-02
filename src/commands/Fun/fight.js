@@ -284,9 +284,7 @@ async function startSoloBattle(interaction) {
 
   let playerHP = STARTING_HP;
   let goblinHP = 100;
-  let defending = false;
   let round = 1;
-  let battleOver = false;
 
   const createSoloEmbed = (
     title = '🤖 Solo Battle',
@@ -314,312 +312,146 @@ async function startSoloBattle(interaction) {
     );
   };
 
-  const createSoloButtons = () => {
-
-    const row = new ActionRowBuilder().addComponents(
-
-      new ButtonBuilder()
-        .setCustomId('solo_attack')
-        .setLabel('Attack')
-        .setEmoji('⚔️')
-        .setStyle(ButtonStyle.Danger),
-
-      new ButtonBuilder()
-        .setCustomId('solo_defend')
-        .setLabel('Defend')
-        .setEmoji('🛡️')
-        .setStyle(ButtonStyle.Primary)
-
-    );
-
-    return [row];
-  };
+  // ==========================================
+  // BATTLE START
+  // ==========================================
 
   await InteractionHelper.safeEditReply(interaction, {
     embeds: [
       createSoloEmbed(
         '🤖 Solo Battle',
         `**${player.username}** has entered the arena!\n\n` +
-        `Your enemy is waiting...`
+          `🤖 The battle will be fought automatically...`
       ),
     ],
-    components: createSoloButtons(),
+    components: [],
   });
 
-  const message = await interaction.fetchReply();
+  await sleep(1500);
 
-  const collector = message.createMessageComponentCollector({
-    time: 300000,
-  });
+  // ==========================================
+  // AUTOMATIC BATTLE LOOP
+  // ==========================================
 
-  collector.on('collect', async (buttonInteraction) => {
+  while (playerHP > 0 && goblinHP > 0) {
 
-    try {
+    // ==========================================
+    // PLAYER ATTACKS
+    // ==========================================
 
-      // Only the player who started the solo battle can control it
-      if (buttonInteraction.user.id !== player.id) {
-        return buttonInteraction.reply({
-          content: '⚠️ This is not your battle!',
-          ephemeral: true,
-        });
-      }
+    const playerDamage = rand(10, 30);
 
-      if (battleOver) {
-        return buttonInteraction.reply({
-          content: '⚠️ This battle has already ended.',
-          ephemeral: true,
-        });
-      }
+    goblinHP -= playerDamage;
 
-      // ==========================================
-      // PLAYER ATTACK
-      // ==========================================
+    if (goblinHP < 0) {
+      goblinHP = 0;
+    }
 
-      if (buttonInteraction.customId === 'solo_attack') {
+    const playerText =
+      `⚔️ **${player.username} attacks the Goblin!**\n` +
+      `💥 **${player.username} deals ${playerDamage} damage!**`;
 
-        const damage = rand(10, 30);
+    // ==========================================
+    // GOBLIN DEFEATED
+    // ==========================================
 
-        goblinHP -= damage;
+    if (goblinHP <= 0) {
 
-        if (goblinHP < 0) {
-          goblinHP = 0;
-        }
+      await InteractionHelper.safeEditReply(interaction, {
+        embeds: [
+          createSoloEmbed(
+            '🏆 Victory!',
+            `${playerText}\n\n` +
+              `💀 **The Goblin has been defeated!**\n\n` +
+              `🏆 **${player.username} wins!**`
+          ),
+        ],
+        components: [],
+      });
 
-        let resultText =
-          `⚔️ **${player.username} attacks the Goblin!**\n` +
-          `💥 You deal **${damage} damage!**`;
-
-        // Goblin defeated
-        if (goblinHP <= 0) {
-
-          battleOver = true;
-          collector.stop('player_won');
-
-          resultText +=
-            `\n\n💀 **The Goblin has been defeated!**\n\n` +
-            `🏆 **${player.username} wins!**`;
-
-          await buttonInteraction.update({
-            embeds: [
-              createSoloEmbed(
-                '🏆 Victory!',
-                resultText
-              ),
-            ],
-            components: [],
-          });
-
-          return;
-        }
-
-        // ==========================================
-        // GOBLIN ATTACKS
-        // ==========================================
-
-        await buttonInteraction.update({
-          embeds: [
-            createSoloEmbed(
-              '⚔️ Your Attack',
-              resultText
-            ),
-          ],
-          components: [],
-        });
-
-        await sleep(1500);
-
-        let goblinDamage = rand(8, 25);
-
-        if (defending) {
-          goblinDamage = Math.floor(goblinDamage / 2);
-
-          if (goblinDamage < 1) {
-            goblinDamage = 1;
-          }
-
-          defending = false;
-        }
-
-        playerHP -= goblinDamage;
-
-        if (playerHP < 0) {
-          playerHP = 0;
-        }
-
-        let enemyText =
-          `👹 **The Goblin attacks!**\n` +
-          `💥 You take **${goblinDamage} damage!**`;
-
-        // Player defeated
-        if (playerHP <= 0) {
-
-          battleOver = true;
-          collector.stop('player_lost');
-
-          enemyText +=
-            `\n\n💀 **You have been defeated!**`;
-
-          await InteractionHelper.safeEditReply(interaction, {
-            embeds: [
-              createSoloEmbed(
-                '💀 Defeat',
-                enemyText
-              ),
-            ],
-            components: [],
-          });
-
-          return;
-        }
-
-        round++;
-
-        await InteractionHelper.safeEditReply(interaction, {
-          embeds: [
-            createSoloEmbed(
-              '⚔️ Solo Battle',
-              `${resultText}\n\n${enemyText}`
-            ),
-          ],
-          components: createSoloButtons(),
-        });
-
-        return;
-      }
-
-      // ==========================================
-      // PLAYER DEFEND
-      // ==========================================
-
-      if (buttonInteraction.customId === 'solo_defend') {
-
-        defending = true;
-
-        const resultText =
-          `🛡️ **${player.username} takes a defensive stance!**\n` +
-          `The next Goblin attack will deal reduced damage.`;
-
-        await buttonInteraction.update({
-          embeds: [
-            createSoloEmbed(
-              '🛡️ Defending',
-              resultText
-            ),
-          ],
-          components: [],
-        });
-
-        await sleep(1500);
-
-        // Goblin attacks while player is defending
-        let goblinDamage = rand(8, 25);
-
-        if (defending) {
-          goblinDamage = Math.floor(goblinDamage / 2);
-
-          if (goblinDamage < 1) {
-            goblinDamage = 1;
-          }
-
-          defending = false;
-        }
-
-        playerHP -= goblinDamage;
-
-        if (playerHP < 0) {
-          playerHP = 0;
-        }
-
-        const enemyText =
-          `👹 **The Goblin attacks while you defend!**\n` +
-          `🛡️ Your defense reduces the damage!\n` +
-          `💥 You take **${goblinDamage} damage!**`;
-
-        if (playerHP <= 0) {
-
-          battleOver = true;
-          collector.stop('player_lost');
-
-          await InteractionHelper.safeEditReply(interaction, {
-            embeds: [
-              createSoloEmbed(
-                '💀 Defeat',
-                `${resultText}\n\n${enemyText}\n\n` +
-                `💀 **You have been defeated!**`
-              ),
-            ],
-            components: [],
-          });
-
-          return;
-        }
-
-        round++;
-
-        await InteractionHelper.safeEditReply(interaction, {
-          embeds: [
-            createSoloEmbed(
-              '⚔️ Solo Battle',
-              `${resultText}\n\n${enemyText}`
-            ),
-          ],
-          components: createSoloButtons(),
-        });
-
-        return;
-      }
-
-    } catch (error) {
-
-      logger.error(
-        'Error handling solo battle button:',
-        error
+      logger.debug(
+        `Solo fight completed in guild ${interaction.guildId}. Winner: ${player.id}`
       );
 
-      if (
-        !buttonInteraction.replied &&
-        !buttonInteraction.deferred
-      ) {
-        await buttonInteraction.reply({
-          content:
-            '⚠️ Something went wrong during the solo battle.',
-          ephemeral: true,
-        });
-      }
+      return;
     }
-  });
 
-  collector.on('end', async (collected, reason) => {
+    // ==========================================
+    // SHOW PLAYER ATTACK
+    // ==========================================
 
-    if (reason === 'time' && !battleOver) {
+    await InteractionHelper.safeEditReply(interaction, {
+      embeds: [
+        createSoloEmbed(
+          '⚔️ Solo Battle',
+          `${playerText}\n\n` +
+            `👹 **Goblin:** ${goblinHP}/100 HP`
+        ),
+      ],
+      components: [],
+    });
 
-      try {
+    await sleep(1500);
 
-        battleOver = true;
+    // ==========================================
+    // GOBLIN ATTACKS
+    // ==========================================
 
-        await InteractionHelper.safeEditReply(interaction, {
-          embeds: [
-            warningEmbed(
-              '🤖 Solo Battle Expired',
-              `**${player.username}** took too long to make a move.`
-            ),
-          ],
-          components: [],
-        });
+    const goblinDamage = rand(8, 25);
 
-      } catch (error) {
+    playerHP -= goblinDamage;
 
-        logger.error(
-          'Error closing solo battle:',
-          error
-        );
-      }
+    if (playerHP < 0) {
+      playerHP = 0;
     }
-  });
 
-  logger.debug(
-    `Solo fight started by ${player.id} in guild ${interaction.guildId}`
-  );
+    const goblinText =
+      `👹 **The Goblin attacks ${player.username}!**\n` +
+      `💥 **The Goblin deals ${goblinDamage} damage!**`;
+
+    // ==========================================
+    // PLAYER DEFEATED
+    // ==========================================
+
+    if (playerHP <= 0) {
+
+      await InteractionHelper.safeEditReply(interaction, {
+        embeds: [
+          createSoloEmbed(
+            '💀 Defeat',
+            `${playerText}\n\n` +
+              `${goblinText}\n\n` +
+              `💀 **${player.username} has been defeated!**`
+          ),
+        ],
+        components: [],
+      });
+
+      logger.debug(
+        `Solo fight completed in guild ${interaction.guildId}. Winner: Goblin`
+      );
+
+      return;
+    }
+
+    // ==========================================
+    // NEXT ROUND
+    // ==========================================
+
+    round++;
+
+    await InteractionHelper.safeEditReply(interaction, {
+      embeds: [
+        createSoloEmbed(
+          '🤖 Solo Battle',
+          `${playerText}\n\n${goblinText}`
+        ),
+      ],
+      components: [],
+    });
+
+    await sleep(1500);
+  }
 }
 
 
