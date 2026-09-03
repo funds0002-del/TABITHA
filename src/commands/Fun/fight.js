@@ -3,6 +3,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  PermissionFlagsBits,
 } from 'discord.js';
 
 import { successEmbed, warningEmbed } from '../../utils/embeds.js';
@@ -14,6 +15,10 @@ const rand = (min, max) =>
 
 const MAX_PLAYERS = 10;
 const STARTING_HP = 100;
+
+// Beta Testers role
+const BETA_TESTER_ROLE_ID = '1545106467928154173';
+
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 export default {
@@ -40,6 +45,28 @@ export default {
   category: 'Fun',
 
   async execute(interaction, config, client) {
+
+    // ==========================================
+    // FIGHT PERMISSION CHECK
+    // ==========================================
+
+    const isAdmin = interaction.member.permissions.has(
+      PermissionFlagsBits.Administrator
+    );
+
+    const isBetaTester = interaction.member.roles.cache.has(
+      BETA_TESTER_ROLE_ID
+    );
+
+    if (!isAdmin && !isBetaTester) {
+      return interaction.reply({
+        content:
+          '❌ **Access Denied**\n' +
+          'Only **Beta Testers** and **server administrators** can use the `/fight` command.',
+        ephemeral: true,
+      });
+    }
+
     await InteractionHelper.safeDefer(interaction);
 
     const mode = interaction.options.getString('mode');
@@ -59,7 +86,6 @@ export default {
 
     const host = interaction.user;
 
-    // Store all players in the battle
     const players = new Map();
 
     players.set(host.id, {
@@ -121,13 +147,7 @@ export default {
 
     collector.on('collect', async (buttonInteraction) => {
       try {
-
-        // ==========================================
-        // JOIN BATTLE
-        // ==========================================
-
         if (buttonInteraction.customId === 'fight_join') {
-
           if (players.has(buttonInteraction.user.id)) {
             return buttonInteraction.reply({
               content: '⚠️ You are already in this battle!',
@@ -163,12 +183,7 @@ export default {
           return;
         }
 
-        // ==========================================
-        // CANCEL BATTLE
-        // ==========================================
-
         if (buttonInteraction.customId === 'fight_cancel') {
-
           if (buttonInteraction.user.id !== host.id) {
             return buttonInteraction.reply({
               content: '⚠️ Only the battle host can cancel this battle!',
@@ -189,12 +204,7 @@ export default {
           });
         }
 
-        // ==========================================
-        // START MULTIPLAYER BATTLE
-        // ==========================================
-
         if (buttonInteraction.customId === 'fight_start') {
-
           if (buttonInteraction.user.id !== host.id) {
             return buttonInteraction.reply({
               content: '⚠️ Only the battle host can start the battle!',
@@ -228,12 +238,9 @@ export default {
             components: [],
           });
 
-          // Start multiplayer battle
           await runBattle(interaction, players);
-
           return;
         }
-
       } catch (error) {
         logger.error('Error handling fight button:', error);
 
@@ -250,7 +257,6 @@ export default {
     });
 
     collector.on('end', async (collected, reason) => {
-
       if (reason === 'time') {
         try {
           await InteractionHelper.safeEditReply(interaction, {
@@ -275,9 +281,9 @@ export default {
 };
 
 
-// =====================================================
+// ==========================================
 // SOLO BATTLE
-// =====================================================
+// ==========================================
 
 async function startSoloBattle(interaction) {
   const player = interaction.user;
@@ -286,14 +292,12 @@ async function startSoloBattle(interaction) {
   let goblinHP = 100;
   let round = 1;
 
-  // Store the complete battle history
   const battleHistory = [];
 
   const createSoloEmbed = (
     title = '🤖 Solo Battle',
     extraText = ''
   ) => {
-
     const playerStatus =
       playerHP > 0
         ? `❤️ **${player.username}** — ${playerHP}/100 HP`
@@ -318,10 +322,6 @@ async function startSoloBattle(interaction) {
     );
   };
 
-  // ==========================================
-  // BATTLE START
-  // ==========================================
-
   battleHistory.push(
     `🔥 **Battle Started!**\n` +
     `👤 **${player.username}** vs 👹 **Goblin**`
@@ -340,16 +340,7 @@ async function startSoloBattle(interaction) {
 
   await sleep(1500);
 
-  // ==========================================
-  // AUTOMATIC BATTLE LOOP
-  // ==========================================
-
   while (playerHP > 0 && goblinHP > 0) {
-
-    // ==========================================
-    // PLAYER ATTACKS
-    // ==========================================
-
     const playerDamage = rand(10, 30);
 
     goblinHP -= playerDamage;
@@ -363,12 +354,7 @@ async function startSoloBattle(interaction) {
       `💥 **${player.username} deals ${playerDamage} damage!**\n` +
       `👹 **Goblin HP:** ${goblinHP}/100`;
 
-    // ==========================================
-    // GOBLIN DEFEATED
-    // ==========================================
-
     if (goblinHP <= 0) {
-
       battleHistory.push(
         `⚔️ **Round ${round}**\n\n` +
         `${playerAttackText}\n\n` +
@@ -392,10 +378,6 @@ async function startSoloBattle(interaction) {
 
       return;
     }
-
-    // ==========================================
-    // GOBLIN ATTACKS
-    // ==========================================
 
     await InteractionHelper.safeEditReply(interaction, {
       embeds: [
@@ -422,22 +404,13 @@ async function startSoloBattle(interaction) {
       `💥 **The Goblin deals ${goblinDamage} damage!**\n` +
       `❤️ **${player.username} HP:** ${playerHP}/100`;
 
-    // ==========================================
-    // ADD COMPLETE ROUND TO HISTORY
-    // ==========================================
-
     battleHistory.push(
       `⚔️ **Round ${round}**\n\n` +
       `${playerAttackText}\n\n` +
       `${goblinAttackText}`
     );
 
-    // ==========================================
-    // PLAYER DEFEATED
-    // ==========================================
-
     if (playerHP <= 0) {
-
       battleHistory.push(
         `💀 **${player.username} has been defeated!**\n` +
         `🏆 **The Goblin wins!**`
@@ -461,10 +434,6 @@ async function startSoloBattle(interaction) {
       return;
     }
 
-    // ==========================================
-    // SHOW UPDATED BATTLE HISTORY
-    // ==========================================
-
     round++;
 
     await InteractionHelper.safeEditReply(interaction, {
@@ -482,12 +451,11 @@ async function startSoloBattle(interaction) {
 }
 
 
-// =====================================================
+// ==========================================
 // MULTIPLAYER BATTLE ENGINE
-// =====================================================
+// ==========================================
 
 async function runBattle(interaction, players) {
-
   const battleLog = [];
   let round = 1;
 
@@ -500,20 +468,16 @@ async function runBattle(interaction, players) {
     'strikes',
   ];
 
-  // Keep fighting until only one player is alive
   while (
     [...players.values()].filter(player => player.alive).length > 1
   ) {
-
     const alivePlayers = [...players.values()].filter(
       player => player.alive
     );
 
-    // Pick attacker
     const attacker =
       alivePlayers[rand(0, alivePlayers.length - 1)];
 
-    // Pick someone else as target
     const possibleTargets = alivePlayers.filter(
       player => player.user.id !== attacker.user.id
     );
@@ -526,14 +490,12 @@ async function runBattle(interaction, players) {
     const action =
       actions[rand(0, actions.length - 1)];
 
-    // Apply damage
     target.hp -= damage;
 
     if (target.hp < 0) {
       target.hp = 0;
     }
 
-    // Create round message
     const roundText =
       `⚔️ **Round ${round}**\n` +
       `**${attacker.user.username}** ${action} ` +
@@ -542,9 +504,7 @@ async function runBattle(interaction, players) {
 
     battleLog.push(roundText);
 
-    // Check elimination
     if (target.hp <= 0) {
-
       target.alive = false;
 
       battleLog.push(
@@ -552,13 +512,10 @@ async function runBattle(interaction, players) {
       );
     }
 
-    // Show recent battle activity
     const recentLog = battleLog.slice(-6).join('\n\n');
 
-    // Show current player health
     const healthStatus = [...players.values()]
       .map(player => {
-
         if (!player.alive) {
           return `💀 **${player.user.username}** — Eliminated`;
         }
@@ -582,20 +539,17 @@ async function runBattle(interaction, players) {
       components: [],
     });
 
-    // Wait 2 seconds before next round
     await sleep(2000);
 
     round++;
   }
 
-  // Find winner
   const winner = [...players.values()].find(
     player => player.alive
   );
 
   const finalHealth = [...players.values()]
     .map(player => {
-
       if (!player.alive) {
         return `💀 **${player.user.username}** — Eliminated`;
       }
@@ -609,9 +563,9 @@ async function runBattle(interaction, players) {
       successEmbed(
         '🏆 Multiplayer Battle Complete!',
         `👑 **${winner.user.username} is the last warrior standing!**\n\n` +
-        `🏆 **${winner.user.username} wins the battle!**\n\n` +
-        `━━━━━━━━━━━━━━━━━━\n` +
-        `📊 **Final Results**\n${finalHealth}`
+          `🏆 **${winner.user.username} wins the battle!**\n\n` +
+          `━━━━━━━━━━━━━━━━━━\n` +
+          `📊 **Final Results**\n${finalHealth}`
       ),
     ],
     components: [],
