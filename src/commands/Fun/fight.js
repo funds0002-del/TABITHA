@@ -4,7 +4,6 @@ import {
   ButtonBuilder,
   ButtonStyle,
   PermissionFlagsBits,
-  AttachmentBuilder,
 } from 'discord.js';
 
 import { successEmbed, warningEmbed } from '../../utils/embeds.js';
@@ -21,7 +20,8 @@ const STARTING_HP = 100;
 const BETA_TESTER_ROLE_ID = '1545106467928154173';
 
 // Tabitha's Tavern image
-const tavernImage = null;
+const TAVERN_IMAGE_URL =
+  'https://raw.githubusercontent.com/funds0002-del/TABITHA/main/asset/Tabithas_Tavern_PNG.png';
 
 const sleep = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -61,12 +61,13 @@ export default {
     // TABITHA'S TAVERN OPENING SCREEN
     // ==========================================
 
-   const tavernEmbed = successEmbed(
-  '🏰 Tabitha’s Tavern',
-  `Welcome to **Tabitha’s Tavern**, warrior!\n\n` +
-    `⚔️ The arena awaits.\n` +
-    `Choose how you want to enter the battle below.`
-);
+    const tavernEmbed = successEmbed(
+      '🏰 Tabitha’s Tavern',
+      `Welcome to **Tabitha’s Tavern**, warrior!\n\n` +
+        `⚔️ The arena awaits.\n` +
+        `Choose how you want to enter the battle below.`
+    ).setImage(TAVERN_IMAGE_URL);
+
     const modeButtons = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('fight_mode_solo')
@@ -81,10 +82,11 @@ export default {
         .setStyle(ButtonStyle.Success)
     );
 
-  await InteractionHelper.safeEditReply(interaction, {
-  embeds: [tavernEmbed],
-  components: [modeButtons],
-});
+    await InteractionHelper.safeEditReply(interaction, {
+      embeds: [tavernEmbed],
+      components: [modeButtons],
+    });
+
     const message = await interaction.fetchReply();
 
     // ==========================================
