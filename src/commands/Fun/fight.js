@@ -22,7 +22,6 @@ const BETA_TESTER_ROLE_ID = '1545106467928154173';
 // Tabitha's Tavern image
 const TAVERN_IMAGE_URL =
   'https://raw.githubusercontent.com/funds0002-del/TABITHA/main/asset/Tabithas_Tavern_PNG.png';
-const SHOW_TAVERN_IMAGE = false;
 
 const sleep = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
