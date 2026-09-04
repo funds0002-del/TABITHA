@@ -6,6 +6,7 @@ import {
   PermissionFlagsBits,
   AttachmentBuilder,
 } from 'discord.js';
+import { fileURLToPath } from 'node:url';
 
 import { successEmbed, warningEmbed } from '../../utils/embeds.js';
 import { logger } from '../../utils/logger.js';
@@ -22,21 +23,25 @@ const BETA_TESTER_ROLE_ID = '1545106467928154173';
 
 // Tabitha's Tavern image
 const tavernImage = new AttachmentBuilder(
-  './assets/Tabithas_Tavern_PNG.png',
-  { name: 'Tabithas_Tavern_PNG.png' }
+  fileURLToPath(
+    new URL('../../assets/Tabithas_Tavern_PNG.png', import.meta.url)
+  ),
+  {
+    name: 'Tabithas_Tavern_PNG.png',
+  }
 );
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 export default {
   data: new SlashCommandBuilder()
     .setName('fight')
-    .setDescription('Enter Tabitha’s Tavern and start a battle.'),
+    .setDescription("Enter Tabitha’s Tavern and start a battle."),
 
   category: 'Fun',
 
   async execute(interaction, config, client) {
-
     // ==========================================
     // FIGHT PERMISSION CHECK
     // ==========================================
@@ -67,8 +72,8 @@ export default {
     const tavernEmbed = successEmbed(
       '🏰 Tabitha’s Tavern',
       `Welcome to **Tabitha’s Tavern**, warrior!\n\n` +
-      `⚔️ The arena awaits.\n` +
-      `Choose how you want to enter the battle below.`
+        `⚔️ The arena awaits.\n` +
+        `Choose how you want to enter the battle below.`
     ).setImage('attachment://Tabithas_Tavern_PNG.png');
 
     const modeButtons = new ActionRowBuilder().addComponents(
@@ -103,13 +108,11 @@ export default {
 
     modeCollector.on('collect', async (buttonInteraction) => {
       try {
-
         // ======================================
         // SOLO MODE
         // ======================================
 
         if (buttonInteraction.customId === 'fight_mode_solo') {
-
           modeCollector.stop('solo');
 
           await buttonInteraction.update({
@@ -117,7 +120,7 @@ export default {
               successEmbed(
                 '🤖 Solo Battle',
                 `⚔️ **Preparing the arena...**\n\n` +
-                `**${buttonInteraction.user.username}** is entering battle against the Goblin!`
+                  `**${buttonInteraction.user.username}** is entering battle against the Goblin!`
               ),
             ],
             components: [],
@@ -134,8 +137,10 @@ export default {
         // MULTIPLAYER MODE
         // ======================================
 
-        if (buttonInteraction.customId === 'fight_mode_multiplayer') {
-
+        if (
+          buttonInteraction.customId ===
+          'fight_mode_multiplayer'
+        ) {
           modeCollector.stop('multiplayer');
 
           const host = buttonInteraction.user;
@@ -193,167 +198,199 @@ export default {
 
           const lobbyMessage = await interaction.fetchReply();
 
-          const collector = lobbyMessage.createMessageComponentCollector({
-            time: 120000,
-          });
+          const collector =
+            lobbyMessage.createMessageComponentCollector({
+              time: 120000,
+            });
 
-          collector.on('collect', async (lobbyInteraction) => {
-            try {
-
-              // ==================================
-              // JOIN BATTLE
-              // ==================================
-
-              if (lobbyInteraction.customId === 'fight_join') {
-
-                if (players.has(lobbyInteraction.user.id)) {
-                  return lobbyInteraction.reply({
-                    content: '⚠️ You are already in this battle!',
-                    ephemeral: true,
-                  });
-                }
-
-                if (lobbyInteraction.user.bot) {
-                  return lobbyInteraction.reply({
-                    content: '⚠️ Bots cannot join the battle!',
-                    ephemeral: true,
-                  });
-                }
-
-                if (players.size >= MAX_PLAYERS) {
-                  return lobbyInteraction.reply({
-                    content:
-                      `⚠️ The battle is full! Maximum: ${MAX_PLAYERS} players.`,
-                    ephemeral: true,
-                  });
-                }
-
-                players.set(lobbyInteraction.user.id, {
-                  user: lobbyInteraction.user,
-                  hp: STARTING_HP,
-                  alive: true,
-                });
-
-                await lobbyInteraction.update({
-                  embeds: [createLobbyEmbed()],
-                  components: createLobbyButtons(),
-                });
-
-                return;
-              }
-
-              // ==================================
-              // CANCEL BATTLE
-              // ==================================
-
-              if (lobbyInteraction.customId === 'fight_cancel') {
-
-                if (lobbyInteraction.user.id !== host.id) {
-                  return lobbyInteraction.reply({
-                    content:
-                      '⚠️ Only the battle host can cancel this battle!',
-                    ephemeral: true,
-                  });
-                }
-
-                collector.stop('cancelled');
-
-                return lobbyInteraction.update({
-                  embeds: [
-                    warningEmbed(
-                      '⚔️ Battle Cancelled',
-                      `**${host.username}** cancelled the battle.`
-                    ),
-                  ],
-                  components: [],
-                });
-              }
-
-              // ==================================
-              // START BATTLE
-              // ==================================
-
-              if (lobbyInteraction.customId === 'fight_start') {
-
-                if (lobbyInteraction.user.id !== host.id) {
-                  return lobbyInteraction.reply({
-                    content:
-                      '⚠️ Only the battle host can start the battle!',
-                    ephemeral: true,
-                  });
-                }
-
-                if (players.size < 2) {
-                  return lobbyInteraction.reply({
-                    content:
-                      '⚠️ At least 2 players are required to start the battle!',
-                    ephemeral: true,
-                  });
-                }
-
-                collector.stop('started');
-
-                await lobbyInteraction.update({
-                  embeds: [
-                    successEmbed(
-                      '⚔️ Battle Started!',
-                      `🔥 **${players.size} warriors have entered the arena!**\n\n` +
-                        [...players.values()]
-                          .map(
-                            (player) =>
-                              `❤️ **${player.user.username}** — ${player.hp} HP`
-                          )
-                          .join('\n')
-                    ),
-                  ],
-                  components: [],
-                });
-
-                await runBattle(interaction, players);
-
-                return;
-              }
-
-            } catch (error) {
-              logger.error(
-                'Error handling multiplayer fight button:',
-                error
-              );
-
-              if (
-                !lobbyInteraction.replied &&
-                !lobbyInteraction.deferred
-              ) {
-                await lobbyInteraction.reply({
-                  content:
-                    '⚠️ Something went wrong during the battle.',
-                  ephemeral: true,
-                });
-              }
-            }
-          });
-
-          collector.on('end', async (collected, reason) => {
-
-            if (reason === 'time') {
+          collector.on(
+            'collect',
+            async (lobbyInteraction) => {
               try {
-                await InteractionHelper.safeEditReply(interaction, {
-                  embeds: [
-                    warningEmbed(
-                      '⚔️ Battle Expired',
-                      'Nobody started the battle in time.'
-                    ),
-                  ],
-                  components: [],
-                });
+                // ======================================
+                // JOIN BATTLE
+                // ======================================
+
+                if (
+                  lobbyInteraction.customId ===
+                  'fight_join'
+                ) {
+                  if (
+                    players.has(
+                      lobbyInteraction.user.id
+                    )
+                  ) {
+                    return lobbyInteraction.reply({
+                      content:
+                        '⚠️ You are already in this battle!',
+                      ephemeral: true,
+                    });
+                  }
+
+                  if (lobbyInteraction.user.bot) {
+                    return lobbyInteraction.reply({
+                      content:
+                        '⚠️ Bots cannot join the battle!',
+                      ephemeral: true,
+                    });
+                  }
+
+                  if (players.size >= MAX_PLAYERS) {
+                    return lobbyInteraction.reply({
+                      content:
+                        `⚠️ The battle is full! Maximum: ${MAX_PLAYERS} players.`,
+                      ephemeral: true,
+                    });
+                  }
+
+                  players.set(
+                    lobbyInteraction.user.id,
+                    {
+                      user: lobbyInteraction.user,
+                      hp: STARTING_HP,
+                      alive: true,
+                    }
+                  );
+
+                  await lobbyInteraction.update({
+                    embeds: [createLobbyEmbed()],
+                    components:
+                      createLobbyButtons(),
+                  });
+
+                  return;
+                }
+
+                // ======================================
+                // CANCEL BATTLE
+                // ======================================
+
+                if (
+                  lobbyInteraction.customId ===
+                  'fight_cancel'
+                ) {
+                  if (
+                    lobbyInteraction.user.id !==
+                    host.id
+                  ) {
+                    return lobbyInteraction.reply({
+                      content:
+                        '⚠️ Only the battle host can cancel this battle!',
+                      ephemeral: true,
+                    });
+                  }
+
+                  collector.stop('cancelled');
+
+                  return lobbyInteraction.update({
+                    embeds: [
+                      warningEmbed(
+                        '⚔️ Battle Cancelled',
+                        `**${host.username}** cancelled the battle.`
+                      ),
+                    ],
+                    components: [],
+                  });
+                }
+
+                // ======================================
+                // START BATTLE
+                // ======================================
+
+                if (
+                  lobbyInteraction.customId ===
+                  'fight_start'
+                ) {
+                  if (
+                    lobbyInteraction.user.id !==
+                    host.id
+                  ) {
+                    return lobbyInteraction.reply({
+                      content:
+                        '⚠️ Only the battle host can start the battle!',
+                      ephemeral: true,
+                    });
+                  }
+
+                  if (players.size < 2) {
+                    return lobbyInteraction.reply({
+                      content:
+                        '⚠️ At least 2 players are required to start the battle!',
+                      ephemeral: true,
+                    });
+                  }
+
+                  collector.stop('started');
+
+                  await lobbyInteraction.update({
+                    embeds: [
+                      successEmbed(
+                        '⚔️ Battle Started!',
+                        `🔥 **${players.size} warriors have entered the arena!**\n\n` +
+                          [...players.values()]
+                            .map(
+                              (player) =>
+                                `❤️ **${player.user.username}** — ${player.hp} HP`
+                            )
+                            .join('\n')
+                      ),
+                    ],
+                    components: [],
+                  });
+
+                  await runBattle(
+                    interaction,
+                    players
+                  );
+
+                  return;
+                }
               } catch (error) {
                 logger.error(
-                  'Error closing fight lobby:',
+                  'Error handling multiplayer fight button:',
                   error
                 );
+
+                if (
+                  !lobbyInteraction.replied &&
+                  !lobbyInteraction.deferred
+                ) {
+                  await lobbyInteraction.reply({
+                    content:
+                      '⚠️ Something went wrong during the battle.',
+                    ephemeral: true,
+                  });
+                }
               }
             }
-          });
+          );
+
+          collector.on(
+            'end',
+            async (collected, reason) => {
+              if (reason === 'time') {
+                try {
+                  await InteractionHelper.safeEditReply(
+                    interaction,
+                    {
+                      embeds: [
+                        warningEmbed(
+                          '⚔️ Battle Expired',
+                          'Nobody started the battle in time.'
+                        ),
+                      ],
+                      components: [],
+                    }
+                  );
+                } catch (error) {
+                  logger.error(
+                    'Error closing fight lobby:',
+                    error
+                  );
+                }
+              }
+            }
+          );
 
           logger.debug(
             `Multiplayer fight lobby created by ${host.id} in guild ${interaction.guildId}`
@@ -361,9 +398,7 @@ export default {
 
           return;
         }
-
       } catch (error) {
-
         logger.error(
           'Error handling fight mode button:',
           error
@@ -382,27 +417,32 @@ export default {
       }
     });
 
-    modeCollector.on('end', async (collected, reason) => {
-
-      if (reason === 'time') {
-        try {
-          await InteractionHelper.safeEditReply(interaction, {
-            embeds: [
-              warningEmbed(
-                '🏰 Tabitha’s Tavern',
-                'The battle selection has expired. Use `/fight` again when you are ready.'
-              ),
-            ],
-            components: [],
-          });
-        } catch (error) {
-          logger.error(
-            'Error closing fight mode selection:',
-            error
-          );
+    modeCollector.on(
+      'end',
+      async (collected, reason) => {
+        if (reason === 'time') {
+          try {
+            await InteractionHelper.safeEditReply(
+              interaction,
+              {
+                embeds: [
+                  warningEmbed(
+                    '🏰 Tabitha’s Tavern',
+                    'The battle selection has expired. Use `/fight` again when you are ready.'
+                  ),
+                ],
+                components: [],
+              }
+            );
+          } catch (error) {
+            logger.error(
+              'Error closing fight mode selection:',
+              error
+            );
+          }
         }
       }
-    });
+    );
 
     logger.debug(
       `Fight menu created by ${interaction.user.id} in guild ${interaction.guildId}`
@@ -410,13 +450,11 @@ export default {
   },
 };
 
-
 // ==========================================
 // SOLO BATTLE
 // ==========================================
 
 async function startSoloBattle(interaction) {
-
   const player = interaction.user;
 
   let playerHP = STARTING_HP;
@@ -429,7 +467,6 @@ async function startSoloBattle(interaction) {
     title = '🤖 Solo Battle',
     extraText = ''
   ) => {
-
     const playerStatus =
       playerHP > 0
         ? `❤️ **${player.username}** — ${playerHP}/100 HP`
@@ -456,7 +493,7 @@ async function startSoloBattle(interaction) {
 
   battleHistory.push(
     `🔥 **Battle Started!**\n` +
-    `👤 **${player.username}** vs 👹 **Goblin**`
+      `👤 **${player.username}** vs 👹 **Goblin**`
   );
 
   await InteractionHelper.safeEditReply(interaction, {
@@ -464,7 +501,7 @@ async function startSoloBattle(interaction) {
       createSoloEmbed(
         '🤖 Solo Battle',
         `**${player.username}** has entered the arena!\n\n` +
-        `🤖 The battle will be fought automatically...`
+          `🤖 The battle will be fought automatically...`
       ),
     ],
     components: [],
@@ -473,6 +510,9 @@ async function startSoloBattle(interaction) {
   await sleep(1500);
 
   while (playerHP > 0 && goblinHP > 0) {
+    // ========================================
+    // PLAYER ATTACK
+    // ========================================
 
     const playerDamage = rand(10, 30);
 
@@ -487,24 +527,30 @@ async function startSoloBattle(interaction) {
       `💥 **${player.username} deals ${playerDamage} damage!**\n` +
       `👹 **Goblin HP:** ${goblinHP}/100`;
 
-    if (goblinHP <= 0) {
+    // ========================================
+    // PLAYER WINS
+    // ========================================
 
+    if (goblinHP <= 0) {
       battleHistory.push(
         `⚔️ **Round ${round}**\n\n` +
-        `${playerAttackText}\n\n` +
-        `💀 **The Goblin has been defeated!**\n` +
-        `🏆 **${player.username} wins!**`
+          `${playerAttackText}\n\n` +
+          `💀 **The Goblin has been defeated!**\n` +
+          `🏆 **${player.username} wins!**`
       );
 
-      await InteractionHelper.safeEditReply(interaction, {
-        embeds: [
-          createSoloEmbed(
-            '🏆 Victory!',
-            `🏆 **${player.username} has won the battle!**`
-          ),
-        ],
-        components: [],
-      });
+      await InteractionHelper.safeEditReply(
+        interaction,
+        {
+          embeds: [
+            createSoloEmbed(
+              '🏆 Victory!',
+              `🏆 **${player.username} has won the battle!**`
+            ),
+          ],
+          components: [],
+        }
+      );
 
       logger.debug(
         `Solo fight completed in guild ${interaction.guildId}. Winner: ${player.id}`
@@ -513,17 +559,24 @@ async function startSoloBattle(interaction) {
       return;
     }
 
-    await InteractionHelper.safeEditReply(interaction, {
-      embeds: [
-        createSoloEmbed(
-          '⚔️ Solo Battle',
-          `⚔️ **Round ${round} is underway...**`
-        ),
-      ],
-      components: [],
-    });
+    await InteractionHelper.safeEditReply(
+      interaction,
+      {
+        embeds: [
+          createSoloEmbed(
+            '⚔️ Solo Battle',
+            `⚔️ **Round ${round} is underway...**`
+          ),
+        ],
+        components: [],
+      }
+    );
 
     await sleep(1500);
+
+    // ========================================
+    // GOBLIN ATTACK
+    // ========================================
 
     const goblinDamage = rand(8, 25);
 
@@ -540,27 +593,33 @@ async function startSoloBattle(interaction) {
 
     battleHistory.push(
       `⚔️ **Round ${round}**\n\n` +
-      `${playerAttackText}\n\n` +
-      `${goblinAttackText}`
+        `${playerAttackText}\n\n` +
+        `${goblinAttackText}`
     );
 
-    if (playerHP <= 0) {
+    // ========================================
+    // PLAYER DEFEATED
+    // ========================================
 
+    if (playerHP <= 0) {
       battleHistory.push(
         `💀 **${player.username} has been defeated!**\n` +
-        `🏆 **The Goblin wins!**`
+          `🏆 **The Goblin wins!**`
       );
 
-      await InteractionHelper.safeEditReply(interaction, {
-        embeds: [
-          createSoloEmbed(
-            '💀 Defeat',
-            `💀 **${player.username} has been defeated!**\n\n` +
-              `👹 **The Goblin wins!**`
-          ),
-        ],
-        components: [],
-      });
+      await InteractionHelper.safeEditReply(
+        interaction,
+        {
+          embeds: [
+            createSoloEmbed(
+              '💀 Defeat',
+              `💀 **${player.username} has been defeated!**\n\n` +
+                `👹 **The Goblin wins!**`
+            ),
+          ],
+          components: [],
+        }
+      );
 
       logger.debug(
         `Solo fight completed in guild ${interaction.guildId}. Winner: Goblin`
@@ -571,28 +630,30 @@ async function startSoloBattle(interaction) {
 
     round++;
 
-    await InteractionHelper.safeEditReply(interaction, {
-      embeds: [
-        createSoloEmbed(
-          '🤖 Solo Battle',
-          `⚔️ **Round ${round - 1} complete!**`
-        ),
-      ],
-      components: [],
-    });
+    await InteractionHelper.safeEditReply(
+      interaction,
+      {
+        embeds: [
+          createSoloEmbed(
+            '🤖 Solo Battle',
+            `⚔️ **Round ${round - 1} complete!**`
+          ),
+        ],
+        components: [],
+      }
+    );
 
     await sleep(1500);
   }
 }
-
 
 // ==========================================
 // MULTIPLAYER BATTLE ENGINE
 // ==========================================
 
 async function runBattle(interaction, players) {
-
   const battleLog = [];
+
   let round = 1;
 
   const actions = [
@@ -605,22 +666,28 @@ async function runBattle(interaction, players) {
   ];
 
   while (
-    [...players.values()].filter(player => player.alive).length > 1
+    [...players.values()].filter(
+      (player) => player.alive
+    ).length > 1
   ) {
-
-    const alivePlayers = [...players.values()].filter(
-      player => player.alive
-    );
+    const alivePlayers = [
+      ...players.values(),
+    ].filter((player) => player.alive);
 
     const attacker =
-      alivePlayers[rand(0, alivePlayers.length - 1)];
+      alivePlayers[
+        rand(0, alivePlayers.length - 1)
+      ];
 
     const possibleTargets = alivePlayers.filter(
-      player => player.user.id !== attacker.user.id
+      (player) =>
+        player.user.id !== attacker.user.id
     );
 
     const target =
-      possibleTargets[rand(0, possibleTargets.length - 1)];
+      possibleTargets[
+        rand(0, possibleTargets.length - 1)
+      ];
 
     const damage = rand(10, 30);
 
@@ -642,7 +709,6 @@ async function runBattle(interaction, players) {
     battleLog.push(roundText);
 
     if (target.hp <= 0) {
-
       target.alive = false;
 
       battleLog.push(
@@ -650,11 +716,14 @@ async function runBattle(interaction, players) {
       );
     }
 
-    const recentLog = battleLog.slice(-6).join('\n\n');
+    const recentLog = battleLog
+      .slice(-6)
+      .join('\n\n');
 
-    const healthStatus = [...players.values()]
-      .map(player => {
-
+    const healthStatus = [
+      ...players.values(),
+    ]
+      .map((player) => {
         if (!player.alive) {
           return `💀 **${player.user.username}** — Eliminated`;
         }
@@ -668,28 +737,61 @@ async function runBattle(interaction, players) {
       `━━━━━━━━━━━━━━━━━━\n` +
       `📊 **Current Health**\n${healthStatus}`;
 
-    await InteractionHelper.safeEditReply(interaction, {
-      embeds: [
-        successEmbed(
-          '⚔️ Multiplayer Battle!',
-          description
-        ),
-      ],
-      components: [],
-    });
+    await InteractionHelper.safeEditReply(
+      interaction,
+      {
+        embeds: [
+          successEmbed(
+            '⚔️ Multiplayer Battle!',
+            description
+          ),
+        ],
+        components: [],
+      }
+    );
 
     await sleep(2000);
 
     round++;
   }
 
-  const winner = [...players.values()].find(
-    player => player.alive
-  );
+  // ==========================================
+  // FIND WINNER
+  // ==========================================
 
-  const finalHealth = [...players.values()]
-    .map(player => {
+  const winner = [
+    ...players.values(),
+  ].find((player) => player.alive);
 
+  if (!winner) {
+    logger.error(
+      `Multiplayer battle ended without a winner in guild ${interaction.guildId}`
+    );
+
+    await InteractionHelper.safeEditReply(
+      interaction,
+      {
+        embeds: [
+          warningEmbed(
+            '⚠️ Battle Error',
+            'The battle ended unexpectedly without a winner.'
+          ),
+        ],
+        components: [],
+      }
+    );
+
+    return;
+  }
+
+  // ==========================================
+  // FINAL RESULTS
+  // ==========================================
+
+  const finalHealth = [
+    ...players.values(),
+  ]
+    .map((player) => {
       if (!player.alive) {
         return `💀 **${player.user.username}** — Eliminated`;
       }
@@ -698,18 +800,21 @@ async function runBattle(interaction, players) {
     })
     .join('\n');
 
-  await InteractionHelper.safeEditReply(interaction, {
-    embeds: [
-      successEmbed(
-        '🏆 Multiplayer Battle Complete!',
-        `👑 **${winner.user.username} is the last warrior standing!**\n\n` +
-          `🏆 **${winner.user.username} wins the battle!**\n\n` +
-          `━━━━━━━━━━━━━━━━━━\n` +
-          `📊 **Final Results**\n${finalHealth}`
-      ),
-    ],
-    components: [],
-  });
+  await InteractionHelper.safeEditReply(
+    interaction,
+    {
+      embeds: [
+        successEmbed(
+          '🏆 Multiplayer Battle Complete!',
+          `👑 **${winner.user.username} is the last warrior standing!**\n\n` +
+            `🏆 **${winner.user.username} wins the battle!**\n\n` +
+            `━━━━━━━━━━━━━━━━━━\n` +
+            `📊 **Final Results**\n${finalHealth}`
+        ),
+      ],
+      components: [],
+    }
+  );
 
   logger.debug(
     `Multiplayer battle completed in guild ${interaction.guildId}. Winner: ${winner.user.id}`
