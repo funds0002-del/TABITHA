@@ -24,7 +24,7 @@ const BETA_TESTER_ROLE_ID = '1545106467928154173';
 // Tabitha's Tavern image
 const tavernImage = new AttachmentBuilder(
   fileURLToPath(
-    new URL('../../assets/Tabithas_Tavern_PNG.png', import.meta.url)
+    new URL('../../../assets/Tabithas_Tavern_PNG.png', import.meta.url)
   ),
   {
     name: 'Tabithas_Tavern_PNG.png',
