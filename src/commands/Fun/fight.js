@@ -6,7 +6,12 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 
-import { successEmbed, warningEmbed } from '../../utils/embeds.js';
+import {
+  successEmbed,
+  warningEmbed,
+  formatProgressBar,
+} from '../../utils/embeds.js';
+
 import { logger } from '../../utils/logger.js';
 import { InteractionHelper } from '../../utils/interactionHelper.js';
 
@@ -25,6 +30,49 @@ const TAVERN_IMAGE_URL =
 
 const sleep = (ms) =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+// ==========================================
+// HEALTH BAR HELPERS
+// ==========================================
+
+function healthBar(current, max = STARTING_HP) {
+  return formatProgressBar(current, max, 10)
+    .replace(/\s+\d+%$/, '');
+}
+
+function healthDisplay(
+  name,
+  current,
+  max = STARTING_HP,
+  emoji = '❤️'
+) {
+  if (current <= 0) {
+    return `💀 **${name}** — Defeated`;
+  }
+
+  return (
+    `${emoji} **${name}**\n` +
+    `${healthBar(current, max)} — **${current} HP**`
+  );
+}
+
+function healthColor(current, max = STARTING_HP) {
+  const percentage = current / max;
+
+  if (percentage <= 0.25) {
+    return '#FF0000';
+  }
+
+  if (percentage <= 0.50) {
+    return '#FFA500';
+  }
+
+  return '#00C853';
+}
+
+// ==========================================
+// FIGHT COMMAND
+// ==========================================
 
 export default {
   data: new SlashCommandBuilder()
@@ -321,9 +369,10 @@ export default {
                           [...players.values()]
                             .map(
                               (player) =>
-                                `❤️ **${player.user.username}** — ${player.hp} HP`
+                                `❤️ **${player.user.username}**\n` +
+                                `${healthBar(player.hp)} — **${player.hp} HP**`
                             )
-                            .join('\n')
+                            .join('\n\n')
                       ),
                     ],
                     components: [],
@@ -449,7 +498,7 @@ async function startSoloBattle(interaction) {
   const player = interaction.user;
 
   let playerHP = STARTING_HP;
-  let goblinHP = 100;
+  let goblinHP = STARTING_HP;
   let round = 1;
 
   const battleHistory = [];
@@ -458,28 +507,43 @@ async function startSoloBattle(interaction) {
     title = '🤖 Solo Battle',
     extraText = ''
   ) => {
-    const playerStatus =
-      playerHP > 0
-        ? `❤️ **${player.username}** — ${playerHP}/100 HP`
-        : `💀 **${player.username}** — Defeated`;
+    const playerStatus = healthDisplay(
+      player.username,
+      playerHP,
+      STARTING_HP,
+      '❤️'
+    );
 
-    const goblinStatus =
-      goblinHP > 0
-        ? `👹 **Goblin** — ${goblinHP}/100 HP`
-        : `💀 **Goblin** — Defeated`;
+    const goblinStatus = healthDisplay(
+      'Goblin',
+      goblinHP,
+      STARTING_HP,
+      '👹'
+    );
 
-    return successEmbed(
+    const lowestHealth = Math.min(
+      playerHP,
+      goblinHP
+    );
+
+    const embed = successEmbed(
       title,
       `${extraText}\n\n` +
         `📜 **Battle History**\n\n` +
         `${battleHistory.join('\n\n')}\n\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
-        `📊 **Current Health**\n` +
-        `${playerStatus}\n` +
+        `📊 **Current Health**\n\n` +
+        `${playerStatus}\n\n` +
         `${goblinStatus}\n\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
         `🎯 **Round:** ${round}`
     );
+
+    embed.setColor(
+      healthColor(lowestHealth)
+    );
+
+    return embed;
   };
 
   battleHistory.push(
@@ -516,7 +580,7 @@ async function startSoloBattle(interaction) {
     const playerAttackText =
       `⚔️ **${player.username} attacks the Goblin!**\n` +
       `💥 **${player.username} deals ${playerDamage} damage!**\n` +
-      `👹 **Goblin HP:** ${goblinHP}/100`;
+      `👹 **Goblin:** ${healthBar(goblinHP)} — **${goblinHP} HP**`;
 
     // ========================================
     // PLAYER WINS
@@ -580,7 +644,7 @@ async function startSoloBattle(interaction) {
     const goblinAttackText =
       `👹 **The Goblin attacks ${player.username}!**\n` +
       `💥 **The Goblin deals ${goblinDamage} damage!**\n` +
-      `❤️ **${player.username} HP:** ${playerHP}/100`;
+      `❤️ **${player.username}:** ${healthBar(playerHP)} — **${playerHP} HP**`;
 
     battleHistory.push(
       `⚔️ **Round ${round}**\n\n` +
@@ -682,9 +746,6 @@ async function runBattle(interaction, players) {
 
     const damage = rand(10, 30);
 
-    const action =
-      actions[rand(0, actions.length - 1)];
-
     target.hp -= damage;
 
     if (target.hp < 0) {
@@ -695,7 +756,7 @@ async function runBattle(interaction, players) {
       `⚔️ **Round ${round}**\n` +
       `**${attacker.user.username}** ${action} ` +
       `**${target.user.username}** for **${damage} damage!**\n\n` +
-      `❤️ **${target.user.username}: ${target.hp} HP**`;
+      `❤️ **${target.user.username}:** ${healthBar(target.hp)} — **${target.hp} HP**`;
 
     battleLog.push(roundText);
 
@@ -719,24 +780,42 @@ async function runBattle(interaction, players) {
           return `💀 **${player.user.username}** — Eliminated`;
         }
 
-        return `❤️ **${player.user.username}** — ${player.hp} HP`;
+        return (
+          `❤️ **${player.user.username}**\n` +
+          `${healthBar(player.hp)} — **${player.hp} HP**`
+        );
       })
-      .join('\n');
+      .join('\n\n');
 
     const description =
       `${recentLog}\n\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `📊 **Current Health**\n${healthStatus}`;
+      `📊 **Current Health**\n\n${healthStatus}`;
+
+    const aliveHealth = [
+      ...players.values(),
+    ]
+      .filter((player) => player.alive)
+      .map((player) => player.hp);
+
+    const lowestHealth =
+      aliveHealth.length > 0
+        ? Math.min(...aliveHealth)
+        : 0;
+
+    const battleEmbed = successEmbed(
+      '⚔️ Multiplayer Battle!',
+      description
+    );
+
+    battleEmbed.setColor(
+      healthColor(lowestHealth)
+    );
 
     await InteractionHelper.safeEditReply(
       interaction,
       {
-        embeds: [
-          successEmbed(
-            '⚔️ Multiplayer Battle!',
-            description
-          ),
-        ],
+        embeds: [battleEmbed],
         components: [],
       }
     );
@@ -787,22 +866,27 @@ async function runBattle(interaction, players) {
         return `💀 **${player.user.username}** — Eliminated`;
       }
 
-      return `👑 **${player.user.username}** — ${player.hp} HP`;
+      return (
+        `👑 **${player.user.username}**\n` +
+        `${healthBar(player.hp)} — **${player.hp} HP**`
+      );
     })
-    .join('\n');
+    .join('\n\n');
+
+  const finalEmbed = successEmbed(
+    '🏆 Multiplayer Battle Complete!',
+    `👑 **${winner.user.username} is the last warrior standing!**\n\n` +
+      `🏆 **${winner.user.username} wins the battle!**\n\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `📊 **Final Results**\n\n${finalHealth}`
+  );
+
+  finalEmbed.setColor('#00C853');
 
   await InteractionHelper.safeEditReply(
     interaction,
     {
-      embeds: [
-        successEmbed(
-          '🏆 Multiplayer Battle Complete!',
-          `👑 **${winner.user.username} is the last warrior standing!**\n\n` +
-            `🏆 **${winner.user.username} wins the battle!**\n\n` +
-            `━━━━━━━━━━━━━━━━━━\n` +
-            `📊 **Final Results**\n${finalHealth}`
-        ),
-      ],
+      embeds: [finalEmbed],
       components: [],
     }
   );
