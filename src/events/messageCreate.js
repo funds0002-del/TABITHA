@@ -37,7 +37,6 @@ export default {
 
       await handlePrefixCommand(message, client);
 
-      await handleLeveling(message, client);
     } catch (error) {
       logger.error('Error in messageCreate event:', error);
     }
